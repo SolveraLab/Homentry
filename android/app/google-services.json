@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "573457612807",
+    "project_id": "homebite-a52e1",
+    "storage_bucket": "homebite-a52e1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:573457612807:android:bed6cddbc99e030fd42aa2",
+        "android_client_info": {
+          "package_name": "com.example.homebite"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBj2kKKyi0irKUPiJGkDYC8GXzC2JXaBv4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
