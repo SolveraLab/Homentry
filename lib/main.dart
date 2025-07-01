@@ -1,18 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-
-// ✅ Add this import to enable Firebase
 import 'package:firebase_core/firebase_core.dart';
 
-import 'package:homebite/view/login_screen.dart';
-import 'package:homebite/view/splash_screen.dart';
+import 'package:homdwell/view/login_screen.dart';
+import 'package:homdwell/view/splash_screen.dart';
+import 'package:homdwell/view/my_upload_page.dart';
+import 'package:homdwell/view/upload_house_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // ✅ Initialize Firebase here
   await Firebase.initializeApp();
-
   runApp(const MyApp());
 }
 
@@ -23,14 +20,16 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return GetMaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'HomeBite',
+      title: 'HomDwell',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const SplashScreen(), // Set splash screen as initial screen
+      home: const SplashScreen(),
       getPages: [
         GetPage(name: '/login', page: () => const LoginScreen()),
+        GetPage(name: '/my_upload', page: () => MyUploadPage()),
+        GetPage(name: '/upload_house', page: () => const UploadHousePage()),
       ],
     );
   }

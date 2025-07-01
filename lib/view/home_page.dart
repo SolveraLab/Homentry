@@ -1,284 +1,237 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-// ================= MODEL =================
-class HouseModel {
-        final String title, price, location, description, imageUrl;
-        HouseModel({
-                required this.title,
-                required this.price,
-                required this.location,
-                required this.description,
-                required this.imageUrl,
-        });
+import 'chat_page.dart';
+import 'house_detail_page.dart';
+import 'profile_page.dart';
+import 'upload_house_page.dart';
+import 'utilities_page.dart';
+import 'wishlist_page.dart';
 
-        Map<String, dynamic> toMap() => {
-                'title': title,
-                'price': price,
-                'location': location,
-                'description': description,
-                'imageUrl': imageUrl,
-        };
-
-        factory HouseModel.fromMap(Map<String, dynamic> map) => HouseModel(
-                title: map['title'],
-                price: map['price'],
-                location: map['location'],
-                description: map['description'],
-                imageUrl: map['imageUrl'],
-        );
-}
-
-// ================= MAIN PAGE =================
 class HomePage extends StatefulWidget {
-        const HomePage({super.key});
-        @override
-        State<HomePage> createState() => _HomePageState();
+  const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-        int _currentIndex = 0;
-        List<HouseModel> houses = [];
+  int _currentIndex = 0;
+  final TextEditingController _searchController = TextEditingController();
+  final user = FirebaseAuth.instance.currentUser;
 
-        @override
-        void initState() {
-                super.initState();
-                fetchHouses();
+  Stream<QuerySnapshot> get houseStream =>
+      FirebaseFirestore.instance.collection('houses').snapshots();
+
+  Future<bool> isAgent() async {
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user?.uid)
+        .get();
+    return doc.exists && doc['role'] == 'agent';
+  }
+
+  Widget buildHouseCard(Map<String, dynamic> houseData) {
+    final String uploaderId = houseData['uploaded_by'] ?? '';
+    final String imageUrl = houseData['imageUrl'] ?? '';
+    final String title = houseData['title'] ?? 'No Title';
+    final String location = houseData['location'] ?? '';
+    final double price = (houseData['price'] is int)
+        ? (houseData['price'] as int).toDouble()
+        : (houseData['price'] ?? 0.0) as double;
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(uploaderId).get(),
+      builder: (context, snapshot) {
+        String uploaderName = "Unknown";
+        String uploaderPic = "";
+
+        if (snapshot.hasData && snapshot.data!.exists) {
+          final userData = snapshot.data!.data() as Map<String, dynamic>;
+          uploaderName = "${userData['first_name'] ?? ''} ${userData['last_name'] ?? ''}".trim();
+          uploaderPic = userData['profilePic'] ?? "";
         }
 
-        Future<void> fetchHouses() async {
-                final snapshot = await FirebaseFirestore.instance.collection('houses').get();
-                final data = snapshot.docs.map((doc) => HouseModel.fromMap(doc.data())).toList();
-                setState(() => houses = data);
-        }
-
-        // ========== BOTTOM NAV PAGES ==========
-        final List<Widget> _pages = [
-                // HOME
-                Builder(
-                        builder: (context) {
-                                return Padding(
-                                        padding: const EdgeInsets.all(8.0),
-                                        child: MasonryGridView.count(
-                                                crossAxisCount: 2,
-                                                mainAxisSpacing: 8,
-                                                crossAxisSpacing: 8,
-                                                itemCount: 0, // dummy placeholder
-                                                itemBuilder: (_, __) => const SizedBox(),
-                                        ),
-                                );
-                        },
+        return GestureDetector(
+          onTap: () => _viewDetails(houseData),
+          child: Card(
+            color: Colors.grey[850],
+            elevation: 5,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(15), topRight: Radius.circular(15)),
+                  child: imageUrl.isNotEmpty
+                      ? Image.network(imageUrl, fit: BoxFit.cover, width: double.infinity, height: 140)
+                      : Container(height: 140, color: Colors.grey[800]),
                 ),
-                const WishlistPage(),
-                const ChatPage(),
-                const ProfilePage(),
-        ];
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: const TextStyle(
+                              color: Color(0xFFFFB300),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16)),
+                      Text("GH₵ ${price.toStringAsFixed(2)} · $location",
+                          style: const TextStyle(color: Colors.white70)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 12,
+                            backgroundImage: uploaderPic.isNotEmpty
+                                ? NetworkImage(uploaderPic)
+                                : const AssetImage("images/avatar.png") as ImageProvider,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(uploaderName,
+                              style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                )
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
-        @override
-        Widget build(BuildContext context) {
-                // Home page content
-                Widget homeContent = Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: MasonryGridView.count(
-                                crossAxisCount: 2,
-                                mainAxisSpacing: 8,
-                                crossAxisSpacing: 8,
-                                itemCount: houses.length,
-                                itemBuilder: (context, index) {
-                                        final house = houses[index];
-                                        return Card(
-                                                elevation: 5,
-                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                                                child: Stack(
-                                                        children: [
-                                                                ClipRRect(
-                                                                        borderRadius: BorderRadius.circular(15),
-                                                                        child: Image.network(
-                                                                                house.imageUrl,
-                                                                                fit: BoxFit.cover,
-                                                                                height: double.infinity,
-                                                                                width: double.infinity,
-                                                                                loadingBuilder: (context, child, progress) =>
-                                                                                progress == null ? child : const Center(child: CircularProgressIndicator()),
-                                                                        ),
-                                                                ),
-                                                                Positioned(
-                                                                        bottom: 0,
-                                                                        left: 0,
-                                                                        right: 0,
-                                                                        child: Container(
-                                                                                padding: const EdgeInsets.all(8),
-                                                                                decoration: BoxDecoration(
-                                                                                        color: Colors.black.withOpacity(0.5),
-                                                                                        borderRadius: const BorderRadius.only(
-                                                                                                bottomLeft: Radius.circular(15),
-                                                                                                bottomRight: Radius.circular(15),
-                                                                                        ),
-                                                                                ),
-                                                                                child: Column(
-                                                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                                                        children: [
-                                                                                                Text(house.title,
-                                                                                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                                                                                Text("GH₵ ${house.price} · ${house.location}",
-                                                                                                    style: const TextStyle(color: Colors.white70)),
-                                                                                        ],
-                                                                                ),
-                                                                        ),
-                                                                )
-                                                        ],
-                                                ),
-                                        );
-                                },
-                        ),
-                );
-
-                return Scaffold(
-                        appBar: AppBar(
-                                title: const Text("HomeBite"),
-                                backgroundColor: Colors.blueAccent,
-                                actions: [
-                                        IconButton(
-                                                icon: const Icon(Icons.add_box_rounded),
-                                                onPressed: () => Get.to(() => const UploadHousePage()),
-                                        ),
-                                        IconButton(
-                                                icon: const Icon(Icons.logout),
-                                                onPressed: () async {
-                                                        await FirebaseAuth.instance.signOut();
-                                                        Get.offAllNamed('/login');
-                                                },
-                                        ),
-                                ],
-                        ),
-                        body: _currentIndex == 0 ? homeContent : _pages[_currentIndex],
-                        bottomNavigationBar: BottomNavigationBar(
-                                currentIndex: _currentIndex,
-                                selectedItemColor: Colors.blueAccent,
-                                unselectedItemColor: Colors.grey,
-                                onTap: (index) => setState(() => _currentIndex = index),
-                                items: const [
-                                        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-                                        BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Wishlist'),
-                                        BottomNavigationBarItem(icon: Icon(Icons.chat_bubble), label: 'Chat'),
-                                        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-                                ],
-                        ),
-                );
-        }
-}
-
-// ==================== OTHER PAGES ====================
-class WishlistPage extends StatelessWidget {
-        const WishlistPage({super.key});
-        @override
-        Widget build(BuildContext context) {
-                return const Center(child: Text("Wishlist Page"));
-        }
-}
-
-class ChatPage extends StatelessWidget {
-        const ChatPage({super.key});
-        @override
-        Widget build(BuildContext context) {
-                return const Center(child: Text("Chat Page"));
-        }
-}
-
-class ProfilePage extends StatelessWidget {
-        const ProfilePage({super.key});
-        @override
-        Widget build(BuildContext context) {
-                return const Center(child: Text("Profile Page"));
-        }
-}
-
-// ==================== UPLOAD PAGE ====================
-class UploadHousePage extends StatefulWidget {
-        const UploadHousePage({super.key});
-        @override
-        State<UploadHousePage> createState() => _UploadHousePageState();
-}
-
-class _UploadHousePageState extends State<UploadHousePage> {
-        final _formKey = GlobalKey<FormState>();
-        final _title = TextEditingController();
-        final _price = TextEditingController();
-        final _location = TextEditingController();
-        final _description = TextEditingController();
-        File? _pickedImage;
-
-        Future<void> _pickImage() async {
-                final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-                if (picked != null) setState(() => _pickedImage = File(picked.path));
+  Widget homeContent() => RefreshIndicator(
+    onRefresh: () async => setState(() {}),
+    child: StreamBuilder<QuerySnapshot>(
+      stream: houseStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(
+              child: CircularProgressIndicator(color: Colors.amber));
         }
 
-        Future<String> _uploadToCloudinary(File image) async {
-                const cloudName = 'ddbcmdxu8';
-                const uploadPreset = 'Houses';
-                final uri = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
-                final request = http.MultipartRequest('POST', uri)
-                        ..fields['upload_preset'] = uploadPreset
-                        ..files.add(await http.MultipartFile.fromPath('file', image.path));
-                final response = await request.send();
-                final responseData = await response.stream.bytesToString();
-                final json = jsonDecode(responseData);
-                return json['secure_url'];
-        }
+        final docs = snapshot.data!.docs;
 
-        Future<void> _uploadHouse() async {
-                if (_formKey.currentState!.validate() && _pickedImage != null) {
-                        try {
-                                showDialog(context: context, barrierDismissible: false, builder: (_) => const Center(child: CircularProgressIndicator()));
-                                final imageUrl = await _uploadToCloudinary(_pickedImage!);
-                                final house = HouseModel(
-                                        title: _title.text,
-                                        price: _price.text,
-                                        location: _location.text,
-                                        description: _description.text,
-                                        imageUrl: imageUrl,
-                                );
-                                await FirebaseFirestore.instance.collection('houses').add(house.toMap());
-                                Navigator.pop(context);
-                                Get.back();
-                                Get.snackbar("Success", "House uploaded successfully",
-                                    backgroundColor: Colors.green, colorText: Colors.white);
-                        } catch (e) {
-                                Navigator.pop(context);
-                                Get.snackbar("Error", "Upload failed: $e", backgroundColor: Colors.red, colorText: Colors.white);
-                        }
-                }
-        }
+        final filteredHouses = docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .where((house) =>
+        (house['isActive'] ?? true) &&
+            ((house['title'] ?? '')
+                .toLowerCase()
+                .contains(_searchController.text.toLowerCase()) ||
+                (house['location'] ?? '')
+                    .toLowerCase()
+                    .contains(_searchController.text.toLowerCase())))
+            .toList();
 
-        @override
-        Widget build(BuildContext context) {
-                return Scaffold(
-                        appBar: AppBar(title: const Text("Upload New House"), backgroundColor: Colors.blueAccent),
-                        body: Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Form(
-                                        key: _formKey,
-                                        child: ListView(
-                                                children: [
-                                                        TextFormField(controller: _title, decoration: const InputDecoration(labelText: "Title"), validator: (v) => v!.isEmpty ? "Required" : null),
-                                                        TextFormField(controller: _price, decoration: const InputDecoration(labelText: "Price (GHS)"), validator: (v) => v!.isEmpty ? "Required" : null),
-                                                        TextFormField(controller: _location, decoration: const InputDecoration(labelText: "Location"), validator: (v) => v!.isEmpty ? "Required" : null),
-                                                        TextFormField(controller: _description, decoration: const InputDecoration(labelText: "Description"), maxLines: 3),
-                                                        const SizedBox(height: 20),
-                                                        ElevatedButton.icon(onPressed: _pickImage, icon: const Icon(Icons.image), label: const Text("Pick Image")),
-                                                        const SizedBox(height: 20),
-                                                        ElevatedButton.icon(onPressed: _uploadHouse, icon: const Icon(Icons.upload_file), label: const Text("Upload to Cloudinary")),
-                                                ],
-                                        ),
-                                ),
-                        ),
-                );
-        }
+        return Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Column(
+            children: [
+              TextField(
+                controller: _searchController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: 'Search by title or location',
+                  labelStyle: const TextStyle(color: Colors.amber),
+                  prefixIcon: const Icon(Icons.search, color: Colors.amber),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 10),
+              Expanded(
+                child: MasonryGridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  itemCount: filteredHouses.length,
+                  itemBuilder: (context, index) =>
+                      buildHouseCard(filteredHouses[index]),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = Color(0xFFFFB300);
+    const dark = Colors.black;
+
+    return Scaffold(
+      backgroundColor: dark,
+      appBar: AppBar(
+        title: const Text("HomDwell", style: TextStyle(color: amber)),
+        backgroundColor: dark,
+        iconTheme: const IconThemeData(color: amber),
+      ),
+      body: _currentIndex == 0
+          ? homeContent()
+          : [
+        const WishlistPage(),
+        const ChatPage(),
+        const ProfilePage(),
+        const UtilitiesPage(),
+      ][_currentIndex - 1],
+      floatingActionButton: _currentIndex == 0
+          ? FutureBuilder<bool>(
+        future: isAgent(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done ||
+              !snapshot.hasData ||
+              !snapshot.data!) {
+            return const SizedBox.shrink();
+          }
+          return FloatingActionButton.extended(
+            onPressed: () => Get.to(() => const UploadHousePage()),
+            backgroundColor: amber,
+            icon: const FaIcon(FontAwesomeIcons.plus, color: Colors.black),
+            label: const Text("Add House",
+                style: TextStyle(color: Colors.black)),
+          );
+        },
+      )
+          : null,
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        backgroundColor: Colors.black,
+        selectedItemColor: amber,
+        unselectedItemColor: Colors.grey[600],
+        type: BottomNavigationBarType.fixed,
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: const [
+          BottomNavigationBarItem(
+              icon: FaIcon(FontAwesomeIcons.house), label: 'Home'),
+          BottomNavigationBarItem(
+              icon: FaIcon(FontAwesomeIcons.heart), label: 'Wishlist'),
+          BottomNavigationBarItem(
+              icon: FaIcon(FontAwesomeIcons.comments), label: 'Chat'),
+          BottomNavigationBarItem(
+              icon: FaIcon(FontAwesomeIcons.user), label: 'Profile'),
+          BottomNavigationBarItem(
+              icon: FaIcon(FontAwesomeIcons.toolbox), label: 'Utility'),
+        ],
+      ),
+    );
+  }
+
+  void _viewDetails(Map<String, dynamic> houseData) {
+    Get.to(() => HouseDetailPage(houseData: houseData));
+  }
 }

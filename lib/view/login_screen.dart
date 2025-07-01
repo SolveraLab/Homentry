@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:homebite/view/signUp_screen.dart';
-import 'package:homebite/view/splash_screen.dart';
-import 'package:homebite/view/home_page.dart';
+import 'package:homdwell/view/signUp_screen.dart';
+import 'package:homdwell/view/home_page.dart';
+import 'package:shimmer/shimmer.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -12,192 +12,258 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends State<LoginScreen>
+    with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailTextEditingController = TextEditingController();
-  final TextEditingController _passwordTextEditingController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   bool isLoading = false;
+  bool showPassword = false;
+  double opacity = 0;
 
-  // 🔐 Login method
+  @override
+  void initState() {
+    super.initState();
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user != null) Get.offAll(() => const HomePage());
+    });
+    _checkEmailLink();
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      setState(() => opacity = 1);
+    });
+  }
+
+  void _checkEmailLink() async {
+    final email = _emailController.text.trim();
+    final link = Uri.base.toString();
+    if (FirebaseAuth.instance.isSignInWithEmailLink(link)) {
+      try {
+        await FirebaseAuth.instance
+            .signInWithEmailLink(email: email, emailLink: link);
+      } catch (e) {
+        Get.snackbar("Login Error", "Could not complete email link login.",
+            backgroundColor: Colors.redAccent, colorText: Colors.white);
+      }
+    }
+  }
+
   Future<void> _loginUser() async {
     if (_formKey.currentState!.validate()) {
       setState(() => isLoading = true);
       try {
         await FirebaseAuth.instance.signInWithEmailAndPassword(
-          email: _emailTextEditingController.text.trim(),
-          password: _passwordTextEditingController.text.trim(),
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
         );
-
         Get.offAll(() => const HomePage());
-
-
       } on FirebaseAuthException catch (e) {
-        String errorMessage = 'Login failed. Please try again.';
-        if (e.code == 'user-not-found') {
-          errorMessage = 'No user found with this email.';
-        } else if (e.code == 'wrong-password') {
-          errorMessage = 'Incorrect password.';
-        }
-
-        Get.snackbar(
-          "Login Error",
-          errorMessage,
-          backgroundColor: Colors.redAccent,
-          colorText: Colors.white,
-          snackPosition: SnackPosition.BOTTOM,
-        );
+        String errorMessage = switch (e.code) {
+          'user-not-found' => 'No user found with this email.',
+          'wrong-password' => 'Incorrect password.',
+          _ => e.message ?? 'Login failed. Please try again.',
+        };
+        Get.snackbar("Login Error", errorMessage,
+            backgroundColor: Colors.redAccent, colorText: Colors.white);
       } finally {
         setState(() => isLoading = false);
       }
     }
   }
 
-  // 📧 Forgot password method
+  Future<void> _sendSignInLinkToEmail() async {
+    final email = _emailController.text.trim();
+    if (!email.contains("@")) {
+      Get.snackbar("Invalid Email", "Please enter a valid email address.");
+      return;
+    }
+
+    ActionCodeSettings acs = ActionCodeSettings(
+      url: 'https://homebite.page.link/login',
+      handleCodeInApp: true,
+      androidPackageName: 'com.example.homebite',
+      androidInstallApp: true,
+      androidMinimumVersion: '21',
+    );
+
+    try {
+      await FirebaseAuth.instance.sendSignInLinkToEmail(
+          email: email, actionCodeSettings: acs);
+      Get.snackbar("Email Sent", "Check your email for the login link.",
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar("Error", e.toString(),
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
   Future<void> _forgotPassword() async {
-    final email = _emailTextEditingController.text.trim();
+    final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains("@")) {
-      Get.snackbar(
-        "Invalid Email",
-        "Enter a valid email to reset password.",
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
+      Get.snackbar("Invalid Email", "Enter a valid email to reset password.",
+          backgroundColor: Colors.orange, colorText: Colors.white);
       return;
     }
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      Get.snackbar(
-        "Reset Link Sent",
-        "Check your email to reset your password.",
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+      Get.snackbar("Reset Link Sent", "Check your email to reset password.",
+          backgroundColor: Colors.green, colorText: Colors.white);
     } on FirebaseAuthException catch (e) {
-      Get.snackbar(
-        "Error",
-        e.message ?? "Something went wrong.",
-        backgroundColor: Colors.redAccent,
-        colorText: Colors.white,
-      );
+      Get.snackbar("Error", e.message ?? "Something went wrong.",
+          backgroundColor: Colors.redAccent, colorText: Colors.white);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    const amber = Color(0xFFFFB300);
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.pinkAccent, Colors.amberAccent],
-            begin: FractionalOffset(0, 0),
-            end: FractionalOffset(1, 0),
-          ),
-        ),
-        child: ListView(
-          children: [
-            Image.asset("images/PORSCHE.jpeg"),
-            const Text(
-              "Hello Friend.\nWelcome back",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 28,
-                color: Colors.blueAccent,
-                letterSpacing: 3,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    // 📧 Email field
-                    Padding(
-                      padding: const EdgeInsets.only(top: 26),
-                      child: TextFormField(
-                        controller: _emailTextEditingController,
-                        decoration: const InputDecoration(labelText: "Email"),
-                        style: const TextStyle(fontSize: 24),
-                        validator: (valueEmail) {
-                          if (!valueEmail!.contains("@")) {
-                            return "Please enter a valid email.";
-                          }
-                          return null;
-                        },
-                      ),
+      backgroundColor: Colors.black,
+      body: AnimatedOpacity(
+        duration: const Duration(milliseconds: 600),
+        opacity: opacity,
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                children: [
+                  Shimmer.fromColors(
+                    baseColor: amber,
+                    highlightColor: Colors.white,
+                    child: const Icon(Icons.house_rounded,
+                        size: 80, color: amber),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    "Welcome to HomDwell",
+                    style: TextStyle(
+                      color: amber,
+                      fontSize: 26,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
                     ),
+                  ),
+                  const SizedBox(height: 40),
 
-                    // 🔒 Password field
-                    Padding(
-                      padding: const EdgeInsets.only(top: 21),
-                      child: TextFormField(
-                        controller: _passwordTextEditingController,
-                        decoration: const InputDecoration(labelText: "Password"),
-                        style: const TextStyle(fontSize: 24),
-                        obscureText: true,
-                        validator: (valuePassword) {
-                          if (valuePassword!.length < 8) {
-                            return "Password should be at least 8 characters.";
-                          }
-                          return null;
-                        },
-                      ),
+                  // Email
+                  TextFormField(
+                    controller: _emailController,
+                    style: const TextStyle(color: Colors.white),
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: const InputDecoration(
+                      labelText: "Email",
+                      prefixIcon: Icon(Icons.mail_outline, color: amber),
+                      labelStyle: TextStyle(color: amber),
+                      focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: amber, width: 2)),
+                      enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: amber)),
                     ),
+                    validator: (value) =>
+                    !value!.contains("@") ? "Enter a valid email." : null,
+                  ),
 
-                    // 🔵 Login button
-                    Padding(
-                      padding: const EdgeInsets.only(top: 25),
-                      child: ElevatedButton(
-                        onPressed: _loginUser,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blueAccent,
-                          padding: const EdgeInsets.symmetric(horizontal: 100, vertical: 8),
+                  const SizedBox(height: 20),
+
+                  // Password
+                  TextFormField(
+                    controller: _passwordController,
+                    style: const TextStyle(color: Colors.white),
+                    obscureText: !showPassword,
+                    decoration: InputDecoration(
+                      labelText: "Password",
+                      prefixIcon:
+                      const Icon(Icons.lock_outline_rounded, color: amber),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          showPassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
+                          color: amber,
                         ),
-                        child: isLoading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text(
-                          "Login",
-                          style: TextStyle(
-                            fontSize: 22,
+                        onPressed: () =>
+                            setState(() => showPassword = !showPassword),
+                      ),
+                      labelStyle: const TextStyle(color: amber),
+                      focusedBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: amber, width: 2)),
+                      enabledBorder: const OutlineInputBorder(
+                          borderSide: BorderSide(color: amber)),
+                    ),
+                    validator: (value) => value == null || value.length < 8
+                        ? "Password must be at least 8 characters."
+                        : null,
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  // Login Button
+                  ElevatedButton.icon(
+                    onPressed: isLoading ? null : _loginUser,
+                    icon: const Icon(Icons.login, color: Colors.black),
+                    label: isLoading
+                        ? Shimmer.fromColors(
+                      baseColor: Colors.black,
+                      highlightColor: Colors.white,
+                      child: const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            color: Colors.black, strokeWidth: 2),
+                      ),
+                    )
+                        : const Text("Login",
+                        style: TextStyle(
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                            color: Colors.black)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: amber,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 100, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                     ),
+                  ),
 
-                    // 💡 Forgot Password button
-                    TextButton(
-                      onPressed: _forgotPassword,
-                      child: const Text(
-                        "Forgot Password?",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          decoration: TextDecoration.underline,
-                        ),
-                      ),
-                    ),
+                  const SizedBox(height: 16),
 
-                    // 🧍 Signup navigation
-                    TextButton(
-                      onPressed: () => Get.offAll(() => const SignupScreen()),
-                      child: const Text(
-                        "Don't have an Account? Create one here.",
+                  // Email Link Login
+                  TextButton.icon(
+                    onPressed: _sendSignInLinkToEmail,
+                    icon: const Icon(Icons.link, color: amber),
+                    label: const Text("Login with Email Link",
+                        style: TextStyle(color: amber)),
+                  ),
+
+                  // Forgot Password
+                  TextButton.icon(
+                    onPressed: _forgotPassword,
+                    icon: const Icon(Icons.lock_reset, color: amber),
+                    label: const Text("Forgot Password?",
+                        style: TextStyle(color: amber)),
+                  ),
+
+                  const Divider(color: Colors.grey),
+                  const SizedBox(height: 10),
+
+                  // Signup
+                  TextButton(
+                    onPressed: () => Get.offAll(() => const SignupScreen()),
+                    child: const Text("Don't have an account? Sign up",
                         style: TextStyle(
-                          color: Colors.blueAccent,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                            color: amber,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600)),
+                  ),
+                ],
               ),
-            )
-          ],
+            ),
+          ),
         ),
       ),
     );

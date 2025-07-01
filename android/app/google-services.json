@@ -12,7 +12,12 @@
           "package_name": "com.example.homebite"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "573457612807-oqppb9g3kp0balutfljdhs8r36gph4dp.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBj2kKKyi0irKUPiJGkDYC8GXzC2JXaBv4"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "573457612807-oqppb9g3kp0balutfljdhs8r36gph4dp.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

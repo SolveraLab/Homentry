@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:homebite/view/login_screen.dart';
+import 'package:homdwell/view/login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,13 +10,31 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeIn;
+
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(seconds: 3), () {  // Reduced to 3 seconds
-      Get.offAll(() => const LoginScreen());  // Proper navigation
+
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+
+    _fadeIn = CurvedAnimation(parent: _animationController, curve: Curves.easeIn);
+    _animationController.forward();
+
+    Timer(const Duration(seconds: 3), () {
+      Get.offAll(() => const LoginScreen());
     });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -27,41 +45,60 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    const Color amber = Color(0xFFFFB300);
+
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.pinkAccent, Colors.amberAccent],
-            begin: FractionalOffset(0, 0),
-            end: FractionalOffset(1, 0),
-            stops: [0, 1],
-            tileMode: TileMode.clamp,
-          ),
-        ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset(
-                "images/pic1.jpg",
-                height: 150,  // Constrained height
-                errorBuilder: (context, error, stackTrace) =>
-                const Icon(Icons.fastfood, size: 100),
+      backgroundColor: Colors.black,
+      body: Stack(
+        children: [
+          // Amber gradient layer
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.black, amber],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const Padding(
-                padding: EdgeInsets.only(top: 18),
-                child: Text(
-                  "HomeBite",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 25,
-                    color: Colors.blueAccent,
+            ),
+          ),
+
+          // Fading logo and text
+          Center(
+            child: FadeTransition(
+              opacity: _fadeIn,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      "images/pic1.jpg",
+                      height: 150,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) =>
+                      const Icon(Icons.fastfood, size: 100, color: amber),
+                    ),
                   ),
-                ),
+                  const SizedBox(height: 20),
+                  Text(
+                    "HomDwell",
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: amber,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "Find best, Dwell Right",
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
